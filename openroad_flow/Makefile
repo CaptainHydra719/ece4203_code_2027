@@ -13,6 +13,12 @@
 #   make ladder                           # every design in LADDER on every platform
 #   make metrics                          # metrics/metrics.csv + plots from finished runs
 #
+# Floorplanning variants (registered_adder; see its config.mk):
+#   make FP=small PDN=sparse PINS=auto    # each knob: floorplan size, power grid, pins
+#   make PINS=auto gui_final              # same knobs to open/clean that variant
+#   make variants                         # one run per choice, then make metrics
+#   make PINS=auto floorplan_images       # fp_floorplan.png, fp_place.png in reports/
+#
 # Designs under ./designs/<platform>/<design>/ win over ORFS's own. Results, logs and
 # reports go to ./results, ./logs, ./reports and ./objects in this directory
 # (WORK_HOME). The ORFS flow itself (scripts, platforms) is not copied here; it is
@@ -43,8 +49,15 @@ ORFS_MAKE = $(MAKE) --no-print-directory -f $(ORFS_FLOW)/Makefile \
     DESIGN_HOME=$(DESIGN_HOME) \
     WORK_HOME=$(WORK_HOME)
 
+# Floorplanning variants of registered_adder (FP / PDN / PINS knobs, see
+# designs/sky130hd/registered_adder/config.mk). One run plus floorplan_images per
+# entry; join knobs in one run with commas:
+#   make variants VARIANTS="FP=wide,PINS=auto PDN=ring"
+VARIANTS ?= FP=small FP=large FP=wide FP=util PDN=dense PDN=sparse PDN=ring \
+            PINS=auto PINS=random PINS=dataflow PINS=oneside
+
 .DEFAULT_GOAL := all
-.PHONY: all list help both ladder metrics
+.PHONY: all list help both ladder metrics variants floorplan_images
 
 all:
 	@test -f "$(DESIGN_CONFIG)" || { echo "No config.mk for DESIGN=$(DESIGN) PLATFORM=$(PLATFORM) ($(DESIGN_CONFIG)). Try: make list"; exit 1; }
@@ -73,11 +86,26 @@ ladder:
 	$(MAKE) --no-print-directory metrics; \
 	if [ -n "$$failed" ]; then echo "FAILED:$$failed"; exit 1; fi
 
+variants:
+	@failed=""; for v in $(VARIANTS); do \
+	    echo "=== $(DESIGN) $$v ==="; \
+	    $(MAKE) --no-print-directory $$(echo $$v | tr , ' ') all floorplan_images || failed="$$failed $$v"; \
+	done; \
+	$(MAKE) --no-print-directory metrics; \
+	if [ -n "$$failed" ]; then echo "FAILED:$$failed"; exit 1; fi
+
+# Floorplan / placement snapshots into reports/.../<variant>/fp_*.png
+floorplan_images:
+	@set -e; for s in floorplan place; do \
+	    $(ORFS_MAKE) run FP_IMAGE_STAGE=$$s RUN_LOG_NAME_STEM=fp_images_$$s \
+	        RUN_SCRIPT=$(CURDIR)/../scripts/save_floorplan_images.tcl; \
+	done
+
 metrics:
 	python3 $(CURDIR)/../scripts/orfs_metrics.py --work $(WORK_HOME) --out $(WORK_HOME)/metrics
 
 help:
-	@sed -n '3,19p' $(firstword $(MAKEFILE_LIST))
+	@sed -n '3,25p' $(firstword $(MAKEFILE_LIST))
 
 # Everything else is passed straight to ORFS.
 Makefile: ;

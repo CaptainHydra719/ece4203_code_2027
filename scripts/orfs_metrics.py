@@ -51,6 +51,9 @@ KEYS = {
 # Fmax metric names carry the clock name, e.g. finish__timing__fmax__clock:core_clock
 FMAX_RE = re.compile(r"^finish__timing__fmax(__clock:.*)?$")
 
+# analyze_power_grid in 6_report.log, once per supply net (VDD, VSS)
+IR_DROP_RE = re.compile(r"Worstcase IR drop:\s*([0-9.eE+-]+)\s*V")
+
 ELAPSED_RE = re.compile(
     r"Elapsed time:\s*(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)\[h:\]min:sec.*?Peak memory:\s*(\d+)KB")
 
@@ -58,7 +61,7 @@ COLUMNS = [
     "design", "platform", "variant", "stage", "instance_count", "cell_area_um2",
     "core_area_um2", "die_area_um2", "utilization", "clock_period_ns", "setup_ws_ns",
     "setup_tns_ns", "hold_ws_ns", "fmax_mhz", "power_mw", "wirelength_um",
-    "drc_errors", "runtime_s", "peak_mem_mb",
+    "drc_errors", "ir_drop_mv", "runtime_s", "peak_mem_mb",
 ]
 
 STAGES = ["1_synth", "2_floorplan", "3_place", "4_cts", "5_route", "6_finish"]
@@ -104,6 +107,16 @@ def runtime(log_dir):
             total += int(h or 0) * 3600 + int(m) * 60 + float(s)
             peak = max(peak, int(kb) / 1024.0)
     return (round(total, 1) if total else None), (round(peak) if peak else None)
+
+
+def ir_drop_mv(log_dir):
+    """Worst IR drop over the supply nets, in mV (None before the finish stage)."""
+    try:
+        text = open(os.path.join(log_dir, "6_report.log"), errors="replace").read()
+    except OSError:
+        return None
+    drops = [float(v) for v in IR_DROP_RE.findall(text)]
+    return max(drops) * 1e3 if drops else None
 
 
 def clock_period(results_dir):
@@ -153,6 +166,7 @@ def collect(work):
             row["fmax_mhz"] = None
         row["power_mw"] = row.pop("power_w") * 1e3 if row.get("power_w") is not None else None
         row.pop("synth_area_um2", None)
+        row["ir_drop_mv"] = ir_drop_mv(log_dir)
         row["runtime_s"], row["peak_mem_mb"] = runtime(log_dir)
         rows.append(row)
     return rows
@@ -194,9 +208,9 @@ def ratios(rows, a="sky130hd", b="asap7"):
 
 
 def write_md(rows, path):
-    cols = ["design", "platform", "stage", "instance_count", "cell_area_um2", "utilization",
-            "clock_period_ns", "setup_ws_ns", "fmax_mhz", "power_mw", "wirelength_um",
-            "runtime_s"]
+    cols = ["design", "platform", "variant", "stage", "instance_count", "cell_area_um2",
+            "die_area_um2", "utilization", "clock_period_ns", "setup_ws_ns", "fmax_mhz",
+            "power_mw", "wirelength_um", "drc_errors", "ir_drop_mv", "runtime_s"]
     lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for r in rows:
         lines.append("| " + " | ".join(fmt(r.get(c), c) for c in cols) + " |")

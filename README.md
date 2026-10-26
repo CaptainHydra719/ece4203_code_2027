@@ -11,6 +11,7 @@ OpenSTA, KLayout, ngspice and OSS CAD Suite in a GitHub Codespace.
 - **Physical design:** `cd openroad_flow && make DESIGN=gcd` (any ORFS design, or your own
   under `openroad_flow/designs/`). Run `make list` to see what's available.
 - **Two technologies, design ladder, metrics:** [docs/examples.md](docs/examples.md).
+- **Floorplanning variants (die size, power grid, pins):** [docs/floorplanning.md](docs/floorplanning.md).
 - **SRAM macros, hardened blocks, pad ring:** [docs/macros-pads.md](docs/macros-pads.md).
 - **Lab 1:** `cd lab1 && make sim synth sta summary`. Assignments: [lab1/ASSIGNMENT1.md](lab1/ASSIGNMENT1.md) (adder area/power scaling), [lab1/ASSIGNMENT2.md](lab1/ASSIGNMENT2.md) (RTL vs gate-level timing and STA).
 - **Image contents** (ORFS 26Q4, OSS CAD Suite, sky130A PDK at `/opt/pdk`, and which `yosys`
